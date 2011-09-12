@@ -1,0 +1,184 @@
+/*
+ * Requête vers le site www.noyau.fr
+ *
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <regex.h>
+
+#include "log.h"
+
+#include "socket.h"
+#include "stream.h"
+#include "websearch.h"
+
+t_websearch new_websearch(const char *host, unsigned short int port, 
+	const char *http_request, const char *str_regex)
+{
+    t_websearch w;
+    w.host = host;
+    w.portnum = port;
+    w.http_request = http_request;
+    w.str_regex = str_regex;
+
+    return w;
+}
+
+int websearch(t_websearch websearch, const char *request,
+	char *websites[], int nbr)
+{
+    int fd;
+    FILE *socket_read;
+    FILE *socket_write;
+    regex_t preg;
+    int count;
+
+    INFO("Connexion au serveur %s:%d", websearch.host, websearch.portnum);
+    fd = establish(websearch.host, websearch.portnum);
+    if (fd == -1) {
+	return 0;
+    }
+
+    INFO("Ouverture des flux lecture/écriture");
+    socket_read = fdopen(fd, "r");
+    if (socket_read == NULL) {
+	ERROR("Echec de l'ouverture en lecture");
+	return 0;
+    }
+
+    socket_write = fdopen(fd, "w");
+    if (socket_write == NULL) {
+	ERROR("Echec de l'ouverture en écriture");
+	return 0;
+    }
+
+    count = 0;
+
+    if (regcomp (&preg, websearch.str_regex, REG_EXTENDED) != 0) {
+	ERROR("Echec de l'initialisation de l'expression rationnelle");
+    } else {
+	int match;
+	size_t nmatch = 0;
+	regmatch_t *pmatch = NULL;
+		           
+	nmatch = preg.re_nsub + 1;
+	pmatch = malloc (sizeof (*pmatch) * nmatch);
+	if (pmatch == NULL) {
+	    ERROR("Erreur d'allocation mémoire : %s", strerror(errno));
+	} else {
+	    char *text;
+	    char *current;
+
+	    /* Envoie de la requête */
+	    INFO("Envoie de la requête HTTP au serveur : %s", request);
+	    fprintf(socket_write, websearch.http_request, request);
+	    fflush(socket_write);
+
+	    /* Lecture de la réponse */
+	    INFO("Lecture de la réponse à la requête HTTP");
+	    text = extract_text(socket_read);
+
+	    if (text != NULL) {
+		/* Extraction des liens */
+		INFO("Extraction des liens contenus dans la réponse: %s", text);
+		current = text;
+		count = 0;
+		while (count < nbr &&
+			(match=regexec(&preg, current, nmatch, pmatch, 0))==0) {
+		    INFO("Nouveau lien trouvé");
+		    /* Le champ 1 contient la sous-partie à extraire */
+		    int start = pmatch[1].rm_so;
+		    int end = pmatch[1].rm_eo;
+		    size_t size = end - start;
+
+		    /* Réservation de la place nécessaire */
+		    websites[count] = malloc (sizeof (char) * (size + 1));
+		    if (websites[count] == NULL) {
+			ERROR("Erreur d'allocation mémoire : %s", strerror(errno));
+		    } else {
+			strncpy (websites[count], &current[start], size);
+			websites[count][size] = '\0';
+			INFO("Ajout du lien : %s", websites[count]);
+			count += 1;
+		    }
+
+		    /* On saute toute la zone filtrée par la regexp */
+		    current = current + pmatch[0].rm_eo;
+		}
+		INFO("Fin de l'extraction des liens");
+
+		if (count < nbr && match != REG_NOMATCH) {
+		    INFO("Erreur lors de l'extraction des liens : %d", match);
+		}
+
+		/* Libération du texte */
+		INFO("Libération buffer du texte");
+		free(text);
+	    }
+
+	    /* Libération de la regexp */
+	    INFO("Libération de la regexp");
+	    regfree(&preg);
+	}
+
+	INFO("Libération réponse au filtrage");
+	free(pmatch);
+    }
+
+    INFO("Fermeture des flux de lecture/écriture");
+    fclose(socket_read);
+    fclose(socket_write);
+
+    INFO("Fermeture de la socket");
+    close_socket(fd);
+
+    return count;
+}
+
+/*
+ * Récupération d'un fichier à travers le web
+ */
+char *webget(char *host, unsigned short int portnum, char *http_request)
+{
+    int fd;
+    FILE *socket_read;
+    FILE *socket_write;
+    char *doc;
+
+    INFO("Connexion au serveur %s:%d", host, portnum);
+    fd = establish(host, portnum);
+    if (fd == -1) {
+	return NULL;
+    }
+
+    INFO("Ouverture des flux lecture/écriture");
+    socket_read = fdopen(fd, "r");
+    if (socket_read == NULL) {
+	ERROR("Echec de l'ouverture en lecture");
+	return NULL;
+    }
+
+    socket_write = fdopen(fd, "w");
+    if (socket_write == NULL) {
+	ERROR("Echec de l'ouverture en écriture");
+	return NULL;
+    }
+
+    INFO("Envoie de la requête HTTP au serveur : ", http_request);
+    fprintf(socket_write, http_request);
+    fflush(socket_write);
+
+    INFO("Lecture de la réponse à la requête HTTP");
+    doc = extract_text(socket_read);
+
+    INFO("Fermeture des flux de lecture/écriture");
+    fclose(socket_read);
+    fclose(socket_write);
+
+    INFO("Fermeture de la socket");
+    close_socket(fd);
+
+    return doc;
+}

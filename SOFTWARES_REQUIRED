@@ -1,0 +1,9 @@
+graphics/xpdf
+print/pstotext
+textproc/antiword
+textproc/catdoc
+archivers/unzip
+www/links
+textproc/rtf2html
+textproc/odt2txt
+converters/recode

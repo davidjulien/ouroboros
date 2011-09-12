@@ -1,0 +1,36 @@
+Tips : 
+Displaying what ouroboros is doing:
+$ tail -F log
+
+Basic tests:
+- ./test_log  : test that output to logfile works correctly
+- ./test_list : test list functions
+- ./test_words_list : test list of words
+- ./test_ldoc : test list describing document
+- ./test_substring_matching : test matching between two texts slightly different
+- ./test_extract_words TEXTE_SOURCE.txt : build words list from text file
+- ./test_file_analysis TEXTE_SOURCE.txt TEXTE_ADD.txt : find longuest subparts of a text in an other one
+
+Network tests:
+- ./test_websearch : test string search on google, will display links found
+- ./test_url "http://fr.wikipedia.org/wiki/Terry_Pratchett" : verify that we can extract correctly host name, port number and file name
+- ./test_webget "fr.wikipedia.org" "/wiki/Terry_Pratchett" pratchett.html
+
+Compare documents:
+- ./test_compare_document TEXTE_MOVE.txt TEXTE_SOURCE.txt reports_move.html
+- ./test_compare_document TEXTE_REPLACE.txt TEXTE_SOURCE.txt reports_replace.html
+
+More interesting examples :
+- ./test_file_type pratchett.html : extract mime/type and charset encoding (for text or html document)
+- ./test_transform pratchett.html pratchett.txt application/pdf binary : transform any file into text file (mime type can be deduced from previous command)
+- ./test_findonweb pratchett.txt : from a text file, find web pages containing subparts of it
+
+Visual identification:
+- ls TEXTE_*.txt | ./test_smith_waterman TEXTE_SOURCE.txt : compare all files TEXTE_*.txt with TEXTE_SOURCE and generate one png image for each comparison
+
+Full analysis:
+- ./test_plagiat pratchett.html : required following directories : texts sources reports
+
+Require database: test_database.c test_report.c
+
+test_compression.c         test_plagiat.c
